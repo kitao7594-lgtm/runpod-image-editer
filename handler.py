@@ -7,7 +7,9 @@ RunPod Serverless - AI Image Editor (NSFW-capable, uncensored)
 
 Modes:
   img2img (default): AutoPipelineForImage2Image。任意のSDXL/SD1.5チェックポイントが使えます。
-    デフォルト MODEL_ID=AstraliteHeart/pony-diffusion-v6-xl (NSFW対応で知られるSDXL系)
+    デフォルト MODEL_ID=AstraliteHeart/pony-diffusion-v6 (NSFW対応で知られるSDXL系)
+  ※作者のリポジトリは単一ファイル v6.safetensors のため from_single_file で読み込む。
+    リポジトリ名に -xl を付けたものは存在しないため使わないこと。
     実写系なら例: SG161222/RealVisXL_V4.0 などに MODEL_ID で差し替え可能。
   pix2pix: timbrooks/instruct-pix2pix による指示編集 (MODE=pix2pix)
 
@@ -37,7 +39,11 @@ MODE_DEFAULT = os.environ.get("MODE", "img2img")
 MODEL_ID = os.environ.get(
     "MODEL_ID",
     "timbrooks/instruct-pix2pix" if MODE_DEFAULT == "pix2pix"
-    else "AstraliteHeart/pony-diffusion-v6-xl",
+    else "AstraliteHeart/pony-diffusion-v6",
+)
+PONY_SINGLE_FILE_URL = os.environ.get(
+    "MODEL_SINGLE_FILE_URL",
+    "https://huggingface.co/AstraliteHeart/pony-diffusion-v6/resolve/main/v6.safetensors",
 )
 _pipes = {}
 
@@ -51,10 +57,19 @@ def load_pipe(mode: str):
         )
         pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
     else:
-        from diffusers import AutoPipelineForImage2Image
-        pipe = AutoPipelineForImage2Image.from_pretrained(
-            MODEL_ID, torch_dtype=torch.float16, variant="fp16", use_safetensors=True
-        )
+        # 作者のリポジトリは diffusers形式ではなく単一の v6.safetensors のため
+        # from_pretrained ではなく from_single_file で読み込む。
+        # diffusers形式の別チェックポイントに差し替えた場合は from_pretrained を使う。
+        if MODEL_ID == "AstraliteHeart/pony-diffusion-v6":
+            from diffusers import StableDiffusionXLImg2ImgPipeline
+            pipe = StableDiffusionXLImg2ImgPipeline.from_single_file(
+                PONY_SINGLE_FILE_URL, torch_dtype=torch.float16, use_safetensors=True
+            )
+        else:
+            from diffusers import AutoPipelineForImage2Image
+            pipe = AutoPipelineForImage2Image.from_pretrained(
+                MODEL_ID, torch_dtype=torch.float16, variant="fp16", use_safetensors=True
+            )
         # SD1.5系で safety_checker が付く場合も明示的に無効化
         if hasattr(pipe, "safety_checker"):
             pipe.safety_checker = None
