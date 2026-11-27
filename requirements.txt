@@ -1,9 +1,9 @@
---extra-index-url https://download.pytorch.org/whl/cu128
+# torch / torchvision are NOT listed on purpose: they are preinstalled
+# (matched pair) in the runpod/pytorch:2.8.0 CUDA 12.8.1 base image.
 runpod==1.7.0
 diffusers==0.36.0
 transformers==4.57.1
 accelerate==1.10.1
-torch==2.8.0+cu128
-torchvision==0.23.0+cu128
+huggingface_hub
 Pillow==10.4.0
 safetensors
