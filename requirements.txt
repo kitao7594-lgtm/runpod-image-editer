@@ -4,5 +4,6 @@ diffusers==0.30.3
 transformers==4.44.2
 accelerate==0.34.2
 torch==2.8.0+cu128
+torchvision==0.23.0+cu128
 Pillow==10.4.0
 safetensors
