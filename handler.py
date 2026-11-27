@@ -41,10 +41,8 @@ MODEL_ID = os.environ.get(
     "timbrooks/instruct-pix2pix" if MODE_DEFAULT == "pix2pix"
     else "AstraliteHeart/pony-diffusion-v6",
 )
-PONY_SINGLE_FILE_URL = os.environ.get(
-    "MODEL_SINGLE_FILE_URL",
-    "https://huggingface.co/AstraliteHeart/pony-diffusion-v6/resolve/main/v6.safetensors",
-)
+PONY_FILENAME = os.environ.get("MODEL_FILENAME", "v6.safetensors")
+PIX2PIX_MODEL_ID = os.environ.get("PIX2PIX_MODEL_ID", "timbrooks/instruct-pix2pix")
 _pipes = {}
 
 def load_pipe(mode: str):
@@ -53,7 +51,7 @@ def load_pipe(mode: str):
     if mode == "pix2pix":
         from diffusers import StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler
         pipe = StableDiffusionInstructPix2PixPipeline.from_pretrained(
-            MODEL_ID, torch_dtype=torch.float16, safety_checker=None
+            PIX2PIX_MODEL_ID, torch_dtype=torch.float16, safety_checker=None
         )
         pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
     else:
@@ -61,9 +59,14 @@ def load_pipe(mode: str):
         # from_pretrained ではなく from_single_file で読み込む。
         # diffusers形式の別チェックポイントに差し替えた場合は from_pretrained を使う。
         if MODEL_ID == "AstraliteHeart/pony-diffusion-v6":
+            # フルURLを from_single_file に直接渡すと diffusers 0.30 系では
+            # repo_id とファイル名に誤分解されて OSError になるため、
+            # hf_hub_download でローカルパスを取得してから読み込む。
+            from huggingface_hub import hf_hub_download
             from diffusers import StableDiffusionXLImg2ImgPipeline
+            ckpt_path = hf_hub_download(repo_id=MODEL_ID, filename=PONY_FILENAME)
             pipe = StableDiffusionXLImg2ImgPipeline.from_single_file(
-                PONY_SINGLE_FILE_URL, torch_dtype=torch.float16, use_safetensors=True
+                ckpt_path, torch_dtype=torch.float16, use_safetensors=True
             )
         else:
             from diffusers import AutoPipelineForImage2Image
@@ -130,5 +133,10 @@ def handler(job):
     except Exception as e:
         return {"error": str(e)}
 
-load_pipe(MODE_DEFAULT)  # ウォームアップ
+try:
+    load_pipe(MODE_DEFAULT)  # ウォームアップ
+except Exception as e:
+    # ウォームアップ失敗でワーカーごと落ちると再起動ループになるため、
+    # ここでは落とさず、初回ジョブで再試行してエラーはジョブ結果に返す。
+    print(f"[warmup] model preload failed (will retry on first job): {e}", flush=True)
 runpod.serverless.start({"handler": handler})
