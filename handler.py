@@ -25,7 +25,6 @@ import torch
 from PIL import Image
 
 import runpod
-from diffusers import QwenImageEditPlusPipeline
 
 MODEL_ID = os.environ.get("MODEL_ID", "Qwen/Qwen-Image-Edit-2511")
 DEFAULT_STEPS = 40
@@ -46,6 +45,10 @@ def load_pipe():
     if _pipe is not None:
         return _pipe
     print(f"[load] loading {MODEL_ID} ...", flush=True)
+    # Import here (not at module top level) so that an import failure is
+    # reported as a job error instead of crash-looping the whole worker.
+    from diffusers import QwenImageEditPlusPipeline
+
     pipe = QwenImageEditPlusPipeline.from_pretrained(
         MODEL_ID, torch_dtype=torch.bfloat16
     )
